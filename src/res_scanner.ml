@@ -187,10 +187,23 @@ let scanIdentifier scanner =
   let str =
     (String.sub [@doesNotRaise]) scanner.src startOff (scanner.offset - startOff)
   in
-  if '{' == scanner.ch && str = "list" then (
-    next scanner;
-    (* TODO: this isn't great *)
-    Token.lookupKeyword "list{")
+  if str = "list" then (
+    (* remember the scaner's state *)
+    let beforeCh = scanner.ch in
+    let beforeOff = scanner.offset in
+    let beforeLOff = scanner.lineOffset in
+    let beforeLNum = scanner.lnum in
+    skipWhitespace scanner;
+    if '{' == scanner.ch then (
+      next scanner;
+      Token.List)
+    else (
+      (* if can't match a brace, roll back to previous location *)
+      scanner.ch <- beforeCh;
+      scanner.offset <- beforeOff;
+      scanner.lineOffset <- beforeLOff;
+      scanner.lnum <- beforeLNum;
+      Token.lookupKeyword str))
   else Token.lookupKeyword str
 
 let scanDigits scanner ~base =
