@@ -92,6 +92,19 @@ let collectListExpressions expr =
   in
   collect [] expr
 
+let collectConcatListExpressions expr =
+  let rec collect acc expr =
+    match expr.pexp_desc with
+    | Pexp_apply
+        ( {pexp_desc = Pexp_ident {txt = Longident.Lident "@"}},
+          [(Nolabel, l1); (Nolabel, l2)] ) ->
+      (* l1 @ l2 *)
+      let subList = collectListExpressions l1 in
+      collect (subList :: acc) l2
+    | _ -> List.rev (collectListExpressions expr :: acc)
+  in
+  collect [] expr
+
 (* (__x) => f(a, __x, c) -----> f(a, _, c)  *)
 let rewriteUnderscoreApply expr =
   match expr.pexp_desc with

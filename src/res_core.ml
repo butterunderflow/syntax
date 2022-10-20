@@ -465,11 +465,9 @@ let makeListAppend loc seq =
       in
       Ast_helper.Exp.apply ~loc
         (Ast_helper.Exp.ident (Location.mkloc (Longident.Lident "@") loc))
-        [Nolabel, e1;
-         Nolabel, exp_el]
+        [(Nolabel, e1); (Nolabel, exp_el)]
   in
   handle_seq seq
-
 
 (* TODO: diagnostic reporting *)
 let lidentOfPath longident =

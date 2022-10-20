@@ -2629,6 +2629,41 @@ and printIfChain ~customLayout pexp_attributes ifs elseExpr cmtTbl =
   Doc.concat [printAttributes ~customLayout attrs cmtTbl; ifDocs; elseDoc]
 
 and printExpression ~customLayout (e : Parsetree.expression) cmtTbl =
+  let makeSpreadDoc = function
+    | Some expr ->
+      Doc.concat
+        [
+          Doc.text ",";
+          Doc.line;
+          Doc.dotdotdot;
+          (let doc = printExpressionWithComments ~customLayout expr cmtTbl in
+           match Parens.expr expr with
+           | Parens.Parenthesized -> addParens doc
+           | Braced braces -> printBraces doc expr braces
+           | Nothing -> doc);
+        ]
+    | None -> Doc.nil
+  in
+  let makeSubListDoc (expressions, spread) =
+    let spreadDoc = makeSpreadDoc spread in
+    Doc.concat
+      [
+        Doc.softLine;
+        Doc.join
+          ~sep:(Doc.concat [Doc.text ","; Doc.line])
+          (List.map
+             (fun expr ->
+               let doc =
+                 printExpressionWithComments ~customLayout expr cmtTbl
+               in
+               match Parens.expr expr with
+               | Parens.Parenthesized -> addParens doc
+               | Braced braces -> printBraces doc expr braces
+               | Nothing -> doc)
+             expressions);
+        spreadDoc;
+      ]
+  in
   let printedExpression =
     match e.pexp_desc with
     | Parsetree.Pexp_constant c ->
@@ -2641,47 +2676,11 @@ and printExpression ~customLayout (e : Parsetree.expression) cmtTbl =
         [Doc.text "list{"; printCommentsInside cmtTbl e.pexp_loc; Doc.rbrace]
     | Pexp_construct ({txt = Longident.Lident "::"}, _) ->
       let expressions, spread = ParsetreeViewer.collectListExpressions e in
-      let spreadDoc =
-        match spread with
-        | Some expr ->
-          Doc.concat
-            [
-              Doc.text ",";
-              Doc.line;
-              Doc.dotdotdot;
-              (let doc =
-                 printExpressionWithComments ~customLayout expr cmtTbl
-               in
-               match Parens.expr expr with
-               | Parens.Parenthesized -> addParens doc
-               | Braced braces -> printBraces doc expr braces
-               | Nothing -> doc);
-            ]
-        | None -> Doc.nil
-      in
       Doc.group
         (Doc.concat
            [
              Doc.text "list{";
-             Doc.indent
-               (Doc.concat
-                  [
-                    Doc.softLine;
-                    Doc.join
-                      ~sep:(Doc.concat [Doc.text ","; Doc.line])
-                      (List.map
-                         (fun expr ->
-                           let doc =
-                             printExpressionWithComments ~customLayout expr
-                               cmtTbl
-                           in
-                           match Parens.expr expr with
-                           | Parens.Parenthesized -> addParens doc
-                           | Braced braces -> printBraces doc expr braces
-                           | Nothing -> doc)
-                         expressions);
-                    spreadDoc;
-                  ]);
+             Doc.indent (makeSubListDoc (expressions, spread));
              Doc.trailingComma;
              Doc.softLine;
              Doc.rbrace;
@@ -2980,6 +2979,19 @@ and printExpression ~customLayout (e : Parsetree.expression) cmtTbl =
              ])
       | extension ->
         printExtension ~customLayout ~atModuleLvl:false extension cmtTbl)
+    | Pexp_apply
+        ( {pexp_desc = Pexp_ident {txt = Longident.Lident "@"}},
+          [(Nolabel, _); (Nolabel, _)] ) ->
+      let subLists = ParsetreeViewer.collectConcatListExpressions e in
+      Doc.group
+        (Doc.concat
+           [
+             Doc.text "list{";
+             Doc.indent (Doc.concat (List.map makeSubListDoc subLists));
+             Doc.trailingComma;
+             Doc.softLine;
+             Doc.rbrace;
+           ])
     | Pexp_apply _ ->
       if ParsetreeViewer.isUnaryExpression e then
         printUnaryExpression ~customLayout e cmtTbl
