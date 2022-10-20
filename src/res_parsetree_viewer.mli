@@ -44,6 +44,10 @@ val collectListExpressions :
   Parsetree.expression ->
   Parsetree.expression list * Parsetree.expression option
 
+val collectConcatListExpressions :
+  Parsetree.expression ->
+  (Parsetree.expression list * Parsetree.expression option) list
+
 type funParamKind =
   | Parameter of {
       attrs: Parsetree.attributes;

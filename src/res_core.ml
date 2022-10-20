@@ -451,6 +451,26 @@ let makeListPattern loc seq ext_opt =
   in
   handle_seq seq
 
+let makeListAppend loc seq =
+  let rec handle_seq = function
+    | [] ->
+      let loc = {loc with Location.loc_ghost = true} in
+      let nil = {Location.txt = Longident.Lident "[]"; loc} in
+      Ast_helper.Exp.construct ~loc nil None
+    | [e1] -> e1
+    | e1 :: el ->
+      let exp_el = handle_seq el in
+      let loc =
+        mkLoc e1.Parsetree.pexp_loc.Location.loc_start exp_el.pexp_loc.loc_end
+      in
+      Ast_helper.Exp.apply ~loc
+        (Ast_helper.Exp.ident (Location.mkloc (Longident.Lident "@") loc))
+        [Nolabel, e1;
+         Nolabel, exp_el]
+  in
+  handle_seq seq
+
+
 (* TODO: diagnostic reporting *)
 let lidentOfPath longident =
   match Longident.flatten longident |> List.rev with
@@ -3743,13 +3763,7 @@ and parseListExpr ~startPos p =
   | [(exprs, None, _, _)] -> makeListExpression loc exprs None
   | exprs ->
     let listExprs = List.map make_sub_expr exprs in
-    Ast_helper.Exp.apply ~loc
-      (Ast_helper.Exp.ident ~loc
-         (Location.mkloc
-            (Longident.Ldot
-               (Longident.Ldot (Longident.Lident "Belt", "List"), "concatMany"))
-            loc))
-      [(Asttypes.Nolabel, Ast_helper.Exp.array ~loc listExprs)]
+    makeListAppend loc listExprs
 (* | (true (\* spread expression *\), expr, _) :: exprs ->
  *   let exprs = check_all_non_spread_exp exprs in
  *   makeListExpression loc exprs (Some expr)
