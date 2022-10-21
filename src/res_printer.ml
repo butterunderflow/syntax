@@ -2629,12 +2629,11 @@ and printIfChain ~customLayout pexp_attributes ifs elseExpr cmtTbl =
   Doc.concat [printAttributes ~customLayout attrs cmtTbl; ifDocs; elseDoc]
 
 and printExpression ~customLayout (e : Parsetree.expression) cmtTbl =
-  let makeSpreadDoc = function
+  let makeSpreadDoc commaBeforeSpread = function
     | Some expr ->
       Doc.concat
         [
-          Doc.text ",";
-          Doc.line;
+          commaBeforeSpread;
           Doc.dotdotdot;
           (let doc = printExpressionWithComments ~customLayout expr cmtTbl in
            match Parens.expr expr with
@@ -2645,7 +2644,11 @@ and printExpression ~customLayout (e : Parsetree.expression) cmtTbl =
     | None -> Doc.nil
   in
   let makeSubListDoc (expressions, spread) =
-    let spreadDoc = makeSpreadDoc spread in
+    let commaBeforeSpread =
+      match expressions with
+      | [] -> Doc.nil
+      | _ -> Doc.concat [Doc.text ","; Doc.line] in
+    let spreadDoc = makeSpreadDoc commaBeforeSpread spread in
     Doc.concat
       [
         Doc.softLine;
@@ -2987,7 +2990,8 @@ and printExpression ~customLayout (e : Parsetree.expression) cmtTbl =
         (Doc.concat
            [
              Doc.text "list{";
-             Doc.indent (Doc.concat (List.map makeSubListDoc subLists));
+             Doc.indent (Doc.join ~sep:(Doc.concat [Doc.text ","; Doc.line])
+                           (List.map makeSubListDoc subLists));
              Doc.trailingComma;
              Doc.softLine;
              Doc.rbrace;
